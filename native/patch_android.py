@@ -19,6 +19,13 @@ COMPONENTS = (
     '        <receiver android:name=".TimerSoundReceiver" android:exported="false"/>\n'
 )
 
+
+def dump(path, s):
+    print("---- " + path + " ----")
+    print(s)
+    print("---- end ----")
+
+
 # 1) AndroidManifest.xml：权限 + 服务 + 接收器
 with open(manifest, encoding="utf-8") as f:
     m = f.read()
@@ -29,42 +36,118 @@ else:
     m2 = re.sub(r"(\s*</application>)", COMPONENTS + r"\1", m2, count=1)
     if m2 == m:
         print("FAIL manifest: anchors not found")
+        dump(manifest, m)
         sys.exit(1)
     with open(manifest, "w", encoding="utf-8") as f:
         f.write(m2)
     print("OK manifest")
 
-# 2) MainActivity：注册插件（Capacitor 要求 registerPlugin 在 super.onCreate 之前）
-if os.path.exists(main_java):
-    with open(main_java, encoding="utf-8") as f:
+
+# 2) MainActivity：注册插件。
+# Capacitor 要求 registerPlugin 在 super.onCreate 之前调用。
+# 兼容两种模板：
+#   - 旧模板：已有 onCreate 方法，直接插到 super.onCreate(savedInstanceState) 前
+#   - Capacitor 7/8 新模板：空类体 public class MainActivity extends BridgeActivity {}
+def patch_java(path):
+    with open(path, encoding="utf-8") as f:
         s = f.read()
-    if "registerPlugin(TimerNotifierPlugin.class)" in s:
+    marker = "registerPlugin(TimerNotifierPlugin.class);"
+    if marker in s:
         print("OK MainActivity.java (already patched)")
+        return
+    if "class MainActivity" not in s:
+        print("FAIL MainActivity.java: MainActivity class not found")
+        dump(path, s)
+        sys.exit(1)
+
+    m = re.search(r"([ \t]*)super\.onCreate\(savedInstanceState\)", s)
+    if m:
+        s = s.replace(m.group(0), m.group(1) + marker + "\n" + m.group(0), 1)
     else:
-        anchor = "        super.onCreate(savedInstanceState);"
-        if anchor not in s:
-            print("FAIL MainActivity.java: anchor not found")
+        cls = re.search(r"\bclass\s+MainActivity\b[^{]*\{", s, re.S)
+        if not cls:
+            print("FAIL MainActivity.java: class body brace not found")
+            dump(path, s)
             sys.exit(1)
-        s = s.replace(anchor, "        registerPlugin(TimerNotifierPlugin.class);\n" + anchor, 1)
-        with open(main_java, "w", encoding="utf-8") as f:
-            f.write(s)
-        print("OK MainActivity.java")
-elif os.path.exists(main_kt):
-    with open(main_kt, encoding="utf-8") as f:
+        onCreate = (
+            "\n\n    @Override\n"
+            "    public void onCreate(Bundle savedInstanceState) {\n"
+            "        " + marker + "\n"
+            "        super.onCreate(savedInstanceState);\n"
+            "    }\n"
+        )
+        s = s[:cls.end()] + onCreate + s[cls.end():]
+
+    if "import android.os.Bundle;" not in s:
+        if "import com.getcapacitor.BridgeActivity;" in s:
+            s = s.replace(
+                "import com.getcapacitor.BridgeActivity;",
+                "import android.os.Bundle;\nimport com.getcapacitor.BridgeActivity;",
+                1,
+            )
+        else:
+            s = re.sub(r"(?m)^package [^\n]+\n", r"\g<0>\nimport android.os.Bundle;\n", s, count=1)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(s)
+    print("OK MainActivity.java")
+
+
+def patch_kt(path):
+    with open(path, encoding="utf-8") as f:
         s = f.read()
-    if "registerPlugin(TimerNotifierPlugin" in s:
+    marker = "registerPlugin(TimerNotifierPlugin::class.java)"
+    if marker in s:
         print("OK MainActivity.kt (already patched)")
+        return
+    if "class MainActivity" not in s:
+        print("FAIL MainActivity.kt: MainActivity class not found")
+        dump(path, s)
+        sys.exit(1)
+
+    m = re.search(r"([ \t]*)super\.onCreate\(savedInstanceState\)", s)
+    if m:
+        s = s.replace(m.group(0), m.group(1) + marker + "\n" + m.group(0), 1)
     else:
-        anchor = "        super.onCreate(savedInstanceState)"
-        if anchor not in s:
-            print("FAIL MainActivity.kt: anchor not found")
-            sys.exit(1)
-        s = s.replace(anchor, "        registerPlugin(TimerNotifierPlugin::class.java)\n" + anchor, 1)
-        with open(main_kt, "w", encoding="utf-8") as f:
-            f.write(s)
-        print("OK MainActivity.kt")
+        cls = re.search(r"\bclass\s+MainActivity\b[^{]*\{", s, re.S)
+        if cls:
+            onCreate = (
+                "\n\n    override fun onCreate(savedInstanceState: Bundle?) {\n"
+                "        " + marker + "\n"
+                "        super.onCreate(savedInstanceState)\n"
+                "    }\n"
+            )
+            s = s[:cls.end()] + onCreate + s[cls.end():]
+        else:
+            cls = re.search(r"\bclass\s+MainActivity\b[^\n]*", s)
+            if not cls:
+                print("FAIL MainActivity.kt: class declaration not found")
+                dump(path, s)
+                sys.exit(1)
+            onCreate = (
+                " {\n"
+                "    override fun onCreate(savedInstanceState: Bundle?) {\n"
+                "        " + marker + "\n"
+                "        super.onCreate(savedInstanceState)\n"
+                "    }\n"
+                "}\n"
+            )
+            s = s[:cls.end()] + onCreate + s[cls.end():]
+
+    if "import android.os.Bundle" not in s:
+        s = re.sub(r"(?m)^package [^\n]+\n", r"\g<0>\nimport android.os.Bundle\n", s, count=1)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(s)
+    print("OK MainActivity.kt")
+
+
+if os.path.exists(main_java):
+    patch_java(main_java)
+elif os.path.exists(main_kt):
+    patch_kt(main_kt)
 else:
-    print("FAIL: MainActivity not found")
+    print("FAIL: MainActivity not found in:")
+    print("  " + main_java)
+    print("  " + main_kt)
     sys.exit(1)
 
 print("patch done")
