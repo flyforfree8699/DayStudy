@@ -10,13 +10,17 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.SystemClock;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import org.json.JSONObject;
+
+import java.util.Locale;
 
 /**
  * 前台服务：常驻通知 + 系统 Chronometer 每秒自动走字 + 准点完成闹钟。
@@ -38,6 +42,12 @@ public class TimerForegroundService extends Service {
     private static final int ALARM_BREAK = 9002;
     private static final int ALARM_COUNTDOWN = 9003;
 
+    private Handler tickHandler;
+    private Runnable tickRunnable;
+    private Config lastCfg;
+    private long cfgStartElapsed;
+    private long cfgTotalMs;
+
     public static void ensureChannel(Context context) {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm.getNotificationChannel(CHANNEL_ID) == null) {
@@ -48,58 +58,66 @@ public class TimerForegroundService extends Service {
     }
 
     public static void start(Context context, JSONObject config) {
-        ensureChannel(context);
-        Intent i = new Intent(context, TimerForegroundService.class);
-        i.setAction(ACTION_START);
-        i.putExtra(EXTRA_CONFIG, config == null ? "{}" : config.toString());
         try {
+            ensureChannel(context);
+            Intent i = new Intent(context, TimerForegroundService.class);
+            i.setAction(ACTION_START);
+            i.putExtra(EXTRA_CONFIG, config == null ? "{}" : config.toString());
             ContextCompat.startForegroundService(context, i);
-        } catch (Exception e) {
+        } catch (Throwable t) {
             // 后台启动限制等异常：忽略，前台服务通常已在运行
         }
     }
 
     public static void stop(Context context) {
-        Intent i = new Intent(context, TimerForegroundService.class);
-        i.setAction(ACTION_STOP);
         try {
+            Intent i = new Intent(context, TimerForegroundService.class);
+            i.setAction(ACTION_STOP);
             context.startService(i);
-        } catch (Exception e) {
+        } catch (Throwable t) {
             // 服务未在运行时忽略
         }
     }
 
     public static void scheduleDone(Context context, long at, String phase, String soundMode, String lang, String title, String body) {
-        int code = ALARM_FOCUS;
-        if ("shortBreak".equals(phase) || "longBreak".equals(phase)) code = ALARM_BREAK;
-        else if ("countdown".equals(phase)) code = ALARM_COUNTDOWN;
+        try {
+            int code = ALARM_FOCUS;
+            if ("shortBreak".equals(phase) || "longBreak".equals(phase)) code = ALARM_BREAK;
+            else if ("countdown".equals(phase)) code = ALARM_COUNTDOWN;
 
-        Intent intent = new Intent(context, TimerSoundReceiver.class);
-        intent.setAction(TimerSoundReceiver.ACTION_DONE);
-        intent.putExtra(TimerSoundReceiver.EXTRA_PHASE, phase);
-        intent.putExtra(TimerSoundReceiver.EXTRA_SOUND_MODE, soundMode);
-        intent.putExtra(TimerSoundReceiver.EXTRA_LANG, lang);
-        intent.putExtra(TimerSoundReceiver.EXTRA_TITLE, title);
-        intent.putExtra(TimerSoundReceiver.EXTRA_BODY, body);
-        PendingIntent pi = PendingIntent.getBroadcast(context, code, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        // 与 Timety 相同的守卫：Android 12+ 精确闹钟权限可能被收回
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-        } else {
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+            Intent intent = new Intent(context, TimerSoundReceiver.class);
+            intent.setAction(TimerSoundReceiver.ACTION_DONE);
+            intent.putExtra(TimerSoundReceiver.EXTRA_PHASE, phase);
+            intent.putExtra(TimerSoundReceiver.EXTRA_SOUND_MODE, soundMode);
+            intent.putExtra(TimerSoundReceiver.EXTRA_LANG, lang);
+            intent.putExtra(TimerSoundReceiver.EXTRA_TITLE, title);
+            intent.putExtra(TimerSoundReceiver.EXTRA_BODY, body);
+            PendingIntent pi = PendingIntent.getBroadcast(context, code, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            // 与 Timety 相同的守卫：Android 12+ 精确闹钟权限可能被收回
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+            }
+        } catch (Throwable t) {
+            // 闹钟权限异常：忽略，前台服务通知仍会刷新
         }
     }
 
     public static void cancelDone(Context context) {
-        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        for (int code : new int[]{ALARM_FOCUS, ALARM_BREAK, ALARM_COUNTDOWN}) {
-            Intent intent = new Intent(context, TimerSoundReceiver.class);
-            intent.setAction(TimerSoundReceiver.ACTION_DONE);
-            PendingIntent pi = PendingIntent.getBroadcast(context, code, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            am.cancel(pi);
+        try {
+            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            for (int code : new int[]{ALARM_FOCUS, ALARM_BREAK, ALARM_COUNTDOWN}) {
+                Intent intent = new Intent(context, TimerSoundReceiver.class);
+                intent.setAction(TimerSoundReceiver.ACTION_DONE);
+                PendingIntent pi = PendingIntent.getBroadcast(context, code, intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                am.cancel(pi);
+            }
+        } catch (Throwable t) {
+            // 忽略
         }
     }
 
@@ -110,67 +128,103 @@ public class TimerForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null) {
-            // START_STICKY 重启但没有意图：结束空跑，避免僵尸常驻
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
-            return START_NOT_STICKY;
-        }
-        String action = intent.getAction();
-        if (ACTION_START.equals(action)) {
-            Config cfg = parse(intent.getStringExtra(EXTRA_CONFIG));
-            if (Build.VERSION.SDK_INT >= 34) {
-                startForeground(NOTIFICATION_ID, buildNotification(cfg), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-            } else {
-                startForeground(NOTIFICATION_ID, buildNotification(cfg));
+        try {
+            if (intent == null) {
+                // START_STICKY 重启但没有意图：结束空跑，避免僵尸常驻
+                stopTicker();
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+                return START_NOT_STICKY;
             }
-            if (cfg.isPaused) {
+            String action = intent.getAction();
+            if (ACTION_START.equals(action)) {
+                Config cfg = parse(intent.getStringExtra(EXTRA_CONFIG));
+                lastCfg = cfg;
+                if (cfg.isRunning && !cfg.isPaused) {
+                    cfgStartElapsed = SystemClock.elapsedRealtime();
+                    cfgTotalMs = cfg.remainingMs;
+                    startTicker();
+                } else {
+                    stopTicker();
+                }
+                if (Build.VERSION.SDK_INT >= 34) {
+                    startForeground(NOTIFICATION_ID, buildNotification(cfg), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                } else {
+                    startForeground(NOTIFICATION_ID, buildNotification(cfg));
+                }
+                if (cfg.isPaused) {
+                    cancelDone(this);
+                } else if (cfg.isRunning && cfg.remainingMs > 0 && !"countup".equals(cfg.mode)) {
+                    scheduleDone(this, System.currentTimeMillis() + cfg.remainingMs,
+                            cfg.phase, cfg.soundMode, cfg.lang, null, null);
+                }
+            } else if (ACTION_STOP.equals(action)) {
+                // JS 主动停止（stopTimerNotification）：闹钟由 JS 决定是否取消
+                stopTicker();
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+            } else if (ACTION_STOP_BTN.equals(action)) {
+                // 通知栏停止按钮：先通知页面同步状态，再取消闹钟并停服务
+                TimerNotifierPlugin.notifyTimerAction("stop");
                 cancelDone(this);
-            } else if (cfg.isRunning && cfg.remainingMs > 0 && !"countup".equals(cfg.mode)) {
-                scheduleDone(this, System.currentTimeMillis() + cfg.remainingMs,
-                        cfg.phase, cfg.soundMode, cfg.lang, null, null);
+                stopTicker();
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+            } else if (ACTION_PAUSE_BTN.equals(action)) {
+                TimerNotifierPlugin.notifyTimerAction("pause");
+            } else if (ACTION_RESUME_BTN.equals(action)) {
+                TimerNotifierPlugin.notifyTimerAction("resume");
             }
-        } else if (ACTION_STOP.equals(action)) {
-            // JS 主动停止（stopTimerNotification）：闹钟由 JS 决定是否取消
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
-        } else if (ACTION_STOP_BTN.equals(action)) {
-            // 通知栏停止按钮：立即取消闹钟并停服务，同时通知页面（页面存活时）同步状态
-            cancelDone(this);
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
-            TimerNotifierPlugin.notifyTimerAction("stop");
-        } else if (ACTION_PAUSE_BTN.equals(action)) {
-            TimerNotifierPlugin.notifyTimerAction("pause");
-        } else if (ACTION_RESUME_BTN.equals(action)) {
-            TimerNotifierPlugin.notifyTimerAction("resume");
+        } catch (Throwable t) {
+            // 任何异常都不允许拖垮进程
         }
         return START_STICKY;
     }
 
-    private Config parse(String raw) {
-        JSONObject o;
-        try {
-            o = new JSONObject(raw == null ? "{}" : raw);
-        } catch (Exception e) {
-            o = new JSONObject();
+    private void startTicker() {
+        if (tickHandler == null) tickHandler = new Handler(Looper.getMainLooper());
+        if (tickRunnable != null) tickHandler.removeCallbacks(tickRunnable);
+        tickRunnable = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Config c = lastCfg;
+                    if (c == null || !c.isRunning || c.isPaused) return;
+                    long elapsed = SystemClock.elapsedRealtime() - cfgStartElapsed;
+                    if ("countup".equals(c.mode)) {
+                        c.elapsedMs = elapsed;
+                        c.contentText = ("en".equals(c.lang) ? "Elapsed " : "已计时 ") + fmtClock(elapsed);
+                    } else {
+                        long remaining = Math.max(0, cfgTotalMs - elapsed);
+                        c.remainingMs = remaining;
+                        c.contentText = ("en".equals(c.lang) ? "Remaining " : "剩余 ") + fmtClock(remaining);
+                    }
+                    NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    nm.notify(NOTIFICATION_ID, buildNotification(c));
+                } catch (Throwable t) {
+                    // 单次刷新失败忽略
+                }
+                if (tickHandler != null && tickRunnable != null) {
+                    tickHandler.postDelayed(tickRunnable, 1000L);
+                }
+            }
+        };
+        tickHandler.postDelayed(tickRunnable, 0L);
+    }
+
+    private void stopTicker() {
+        if (tickHandler != null && tickRunnable != null) {
+            tickHandler.removeCallbacks(tickRunnable);
         }
-        Config c = new Config();
-        c.title = o.optString("title", "学习打卡");
-        c.mode = o.optString("mode", "pomodoro");
-        c.phase = o.optString("phase", "focus");
-        c.lang = o.optString("lang", "zh");
-        c.soundMode = o.optString("soundMode", "silent");
-        c.stateLabel = o.optString("stateLabel", "专注中");
-        c.pauseLabel = o.optString("pauseLabel", "暂停");
-        c.resumeLabel = o.optString("resumeLabel", "继续");
-        c.stopLabel = o.optString("stopLabel", "停止");
-        c.isRunning = o.optBoolean("running", true);
-        c.isPaused = o.optBoolean("paused", false);
-        c.remainingMs = o.optLong("remainingMs", 0L);
-        c.elapsedMs = o.optLong("elapsedMs", 0L);
-        c.pausedText = o.optString("pausedText", "已暂停");
-        return c;
+        tickRunnable = null;
+    }
+
+    private static String fmtClock(long ms) {
+        long totalSec = ms / 1000;
+        long h = totalSec / 3600, m = (totalSec % 3600) / 60, s = totalSec % 60;
+        return h > 0
+                ? String.format(Locale.US, "%d:%02d:%02d", h, m, s)
+                : String.format(Locale.US, "%02d:%02d", m, s);
     }
 
     private Notification buildNotification(Config cfg) {
@@ -190,15 +244,10 @@ public class TimerForegroundService extends Service {
                 .setPriority(NotificationCompat.PRIORITY_LOW);
 
         if (cfg.isRunning && !cfg.isPaused) {
-            b.setShowWhen(true).setUsesChronometer(true);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                b.setChronometerCountDown(!"countup".equals(cfg.mode));
-            }
-            long now = SystemClock.elapsedRealtime();
-            b.setWhen("countup".equals(cfg.mode) ? now - cfg.elapsedMs : now + cfg.remainingMs);
-            b.setContentText(cfg.stateLabel);
+            String bodyText = (cfg.contentText != null && cfg.contentText.length() > 0)
+                    ? cfg.contentText : cfg.stateLabel;
+            b.setContentText(bodyText);
         } else {
-            b.setUsesChronometer(false).setShowWhen(false);
             b.setContentText(cfg.pausedText);
         }
 
@@ -236,5 +285,32 @@ public class TimerForegroundService extends Service {
         long remainingMs = 0L;
         long elapsedMs = 0L;
         String pausedText = "已暂停";
+        String contentText = null;
     }
+
+    private Config parse(String raw) {
+        JSONObject o;
+        try {
+            o = new JSONObject(raw == null ? "{}" : raw);
+        } catch (Exception e) {
+            o = new JSONObject();
+        }
+        Config c = new Config();
+        c.title = o.optString("title", "学习打卡");
+        c.mode = o.optString("mode", "pomodoro");
+        c.phase = o.optString("phase", "focus");
+        c.lang = o.optString("lang", "zh");
+        c.soundMode = o.optString("soundMode", "silent");
+        c.stateLabel = o.optString("stateLabel", "专注中");
+        c.pauseLabel = o.optString("pauseLabel", "暂停");
+        c.resumeLabel = o.optString("resumeLabel", "继续");
+        c.stopLabel = o.optString("stopLabel", "停止");
+        c.isRunning = o.optBoolean("running", true);
+        c.isPaused = o.optBoolean("paused", false);
+        c.remainingMs = o.optLong("remainingMs", 0L);
+        c.elapsedMs = o.optLong("elapsedMs", 0L);
+        c.pausedText = o.optString("pausedText", "已暂停");
+        return c;
+    }
+
 }

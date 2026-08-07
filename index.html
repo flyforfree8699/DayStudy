@@ -245,6 +245,12 @@ body.no-frost .card,body.no-frost .stat-card{backdrop-filter:none;-webkit-backdr
   .timer-display{padding:30px 0 16px}
   .card{padding:22px}
 }
+@media(max-width:479.98px){
+  /* 手机：任务列表与目标模块从左右两栏改为上下堆叠 */
+  .split-panel{flex-direction:column;gap:10px}
+  .split-divider{display:none}
+  .task-list,.goals-list{max-height:240px}
+}
 </style>
 </head>
 <body>
@@ -1250,21 +1256,29 @@ function getTimerStatusText(){
   }
   return {title: task.name, body: body};
 }
-function startTimerNotification(){
+async function startTimerNotification(){
   if(!NATIVE) return;
-  NATIVE.startForeground(nativeTimerConfig()).catch(()=>{});
-  if(timerRunning && !timerPaused && timeLeft > 0 && timerMode !== 'countup'){
-    const task = getTask(currentTaskId);
-    const isBreak = (timerMode==='shortBreak' || timerMode==='longBreak');
-    NATIVE.scheduleDone({
-      at: Date.now() + Math.max(1000, Math.round(timeLeft * 1000)),
-      phase: timerMode,
-      soundMode: getSoundMode(task),
-      lang: LANG,
-      title: t('计时完成'),
-      body: isBreak ? t('休息结束') : t('专注结束')
-    }).catch(()=>{});
-  }
+  try{
+    // 先确保通知权限：用户在系统弹窗上选择后才继续，避免"开始点了没通知"
+    var _pr = NATIVE.requestPermission();
+    if(_pr && typeof _pr.then === 'function'){ await _pr; }
+    var cfg = nativeTimerConfig();
+    var _sf = NATIVE.startForeground(cfg);
+    if(_sf && typeof _sf.then === 'function'){ await _sf; }
+    if(cfg.running && !cfg.paused && cfg.remainingMs > 0 && cfg.mode !== 'countup'){
+      var task = getTask(currentTaskId);
+      var isBreak = (timerMode==='shortBreak' || timerMode==='longBreak');
+      var _sd = NATIVE.scheduleDone({
+        at: Date.now() + Math.max(1000, Math.round(timeLeft * 1000)),
+        phase: timerMode,
+        soundMode: getSoundMode(task),
+        lang: LANG,
+        title: t('计时完成'),
+        body: isBreak ? t('休息结束') : t('专注结束')
+      });
+      if(_sd && typeof _sd.then === 'function'){ await _sd; }
+    }
+  }catch(e){}
 }
 
 function stopTimerNotification(keepDone){
@@ -1292,13 +1306,6 @@ if(NATIVE){
     });
     if(_nl && typeof _nl.catch === 'function'){ _nl.catch(function(){}); }
   }catch(err){}
-  document.addEventListener('click', function nativePerm(){
-    try{
-      var _rp = NATIVE.requestPermission();
-      if(_rp && typeof _rp.catch === 'function'){ _rp.catch(function(){}); }
-    }catch(err){}
-    document.removeEventListener('click', nativePerm);
-  }, {once:true});
 }
 
 

@@ -4,27 +4,35 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
 
 /**
  * JS <-> 原生通知桥：网页里的计时逻辑通过这个插件控制前台服务和准点闹钟。
  */
-@CapacitorPlugin(name = "TimerNotifier")
+@CapacitorPlugin(name = "TimerNotifier", permissions = {
+        @Permission(alias = "notifications", strings = {Manifest.permission.POST_NOTIFICATIONS})
+})
 public class TimerNotifierPlugin extends Plugin {
 
     private static TimerNotifierPlugin instance;
 
     public static void notifyTimerAction(String action) {
-        TimerNotifierPlugin p = instance;
-        if (p != null) {
-            p.notifyListeners("timerAction", new JSObject().put("action", action));
+        try {
+            TimerNotifierPlugin p = instance;
+            if (p != null) {
+                p.notifyListeners("timerAction", new JSObject().put("action", action));
+            }
+        } catch (Throwable t) {
+            // 页面未就绪时忽略（如进程刚被拉起）
         }
     }
 
@@ -43,11 +51,22 @@ public class TimerNotifierPlugin extends Plugin {
 
     @PluginMethod
     public void requestPermission(PluginCall call) {
-        boolean ok = canNotify();
-        if (!ok && getActivity() != null) {
-            ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        if (canNotify()) {
+            call.resolve(new JSObject().put("granted", true));
+            return;
         }
-        call.resolve(new JSObject().put("granted", ok));
+        if (getActivity() == null) {
+            call.resolve(new JSObject().put("granted", false));
+            return;
+        }
+        // 弹出系统授权框，用户在对话框上做出选择后才 resolve
+        requestPermissionForAlias("notifications", call, "permissionResult");
+    }
+
+    @ActivityCallback
+    private void permissionResult(PluginCall call) {
+        boolean granted = getPermissionState("notifications") == PermissionState.GRANTED;
+        call.resolve(new JSObject().put("granted", granted));
     }
 
     @PluginMethod
