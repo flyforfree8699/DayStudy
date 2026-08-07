@@ -19,7 +19,7 @@ COMPONENTS = (
     '        <receiver android:name=".TimerSoundReceiver" android:exported="false"/>\n'
 )
 
-# 1) AndroidManifest.xml：权限 + 服务 + 接收器
+# 1) AndroidManifest.xml: permissions + service + receiver
 with open(manifest, encoding="utf-8") as f:
     m = f.read()
 if "POST_NOTIFICATIONS" in m:
@@ -34,35 +34,93 @@ else:
         f.write(m2)
     print("OK manifest")
 
-# 2) MainActivity：注册插件（Capacitor 要求 registerPlugin 在 super.onCreate 之前）
-if os.path.exists(main_java):
+# 2) MainActivity: register plugin before super.onCreate
+def patch_java():
     with open(main_java, encoding="utf-8") as f:
         s = f.read()
     if "registerPlugin(TimerNotifierPlugin.class)" in s:
         print("OK MainActivity.java (already patched)")
-    else:
-        anchor = "        super.onCreate(savedInstanceState);"
-        if anchor not in s:
-            print("FAIL MainActivity.java: anchor not found")
-            sys.exit(1)
-        s = s.replace(anchor, "        registerPlugin(TimerNotifierPlugin.class);\n" + anchor, 1)
-        with open(main_java, "w", encoding="utf-8") as f:
-            f.write(s)
-        print("OK MainActivity.java")
-elif os.path.exists(main_kt):
+        return
+
+    # Try multiple anchor patterns
+    anchors = [
+        "        super.onCreate(savedInstanceState);",
+        "    super.onCreate(savedInstanceState);",
+        "super.onCreate(savedInstanceState);",
+    ]
+    patched = False
+    for anchor in anchors:
+        if anchor in s:
+            s = s.replace(anchor, "        registerPlugin(TimerNotifierPlugin.class);\n" + anchor, 1)
+            patched = True
+            break
+
+    if not patched:
+        # If no super.onCreate found, add the whole onCreate method
+        # Find the class body and add onCreate
+        if "class MainActivity" in s:
+            s = re.sub(
+                r'(class MainActivity\s+extends\s+\w+\s*\{)',
+                r'\1\n    @Override\n    protected void onCreate(Bundle savedInstanceState) {\n'
+                r'        registerPlugin(TimerNotifierPlugin.class);\n'
+                r'        super.onCreate(savedInstanceState);\n'
+                r'    }\n',
+                s, count=1
+            )
+            patched = True
+
+    if not patched:
+        print("FAIL MainActivity.java: could not patch")
+        sys.exit(1)
+
+    with open(main_java, "w", encoding="utf-8") as f:
+        f.write(s)
+    print("OK MainActivity.java")
+
+def patch_kotlin():
     with open(main_kt, encoding="utf-8") as f:
         s = f.read()
     if "registerPlugin(TimerNotifierPlugin" in s:
         print("OK MainActivity.kt (already patched)")
-    else:
-        anchor = "        super.onCreate(savedInstanceState)"
-        if anchor not in s:
-            print("FAIL MainActivity.kt: anchor not found")
-            sys.exit(1)
-        s = s.replace(anchor, "        registerPlugin(TimerNotifierPlugin::class.java)\n" + anchor, 1)
-        with open(main_kt, "w", encoding="utf-8") as f:
-            f.write(s)
-        print("OK MainActivity.kt")
+        return
+
+    anchors = [
+        "        super.onCreate(savedInstanceState)",
+        "    super.onCreate(savedInstanceState)",
+        "super.onCreate(savedInstanceState)",
+    ]
+    patched = False
+    for anchor in anchors:
+        if anchor in s:
+            s = s.replace(anchor, "        registerPlugin(TimerNotifierPlugin::class.java)\n" + anchor, 1)
+            patched = True
+            break
+
+    if not patched:
+        # If no super.onCreate found, add the whole onCreate method
+        if "class MainActivity" in s:
+            s = re.sub(
+                r'(class MainActivity\s*(:\s*\w+\(\))?\s*\{)',
+                r'\1\n    override fun onCreate(savedInstanceState: Bundle?) {\n'
+                r'        registerPlugin(TimerNotifierPlugin::class.java)\n'
+                r'        super.onCreate(savedInstanceState)\n'
+                r'    }\n',
+                s, count=1
+            )
+            patched = True
+
+    if not patched:
+        print("FAIL MainActivity.kt: could not patch")
+        sys.exit(1)
+
+    with open(main_kt, "w", encoding="utf-8") as f:
+        f.write(s)
+    print("OK MainActivity.kt")
+
+if os.path.exists(main_java):
+    patch_java()
+elif os.path.exists(main_kt):
+    patch_kotlin()
 else:
     print("FAIL: MainActivity not found")
     sys.exit(1)
