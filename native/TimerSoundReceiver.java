@@ -33,9 +33,13 @@ public class TimerSoundReceiver extends BroadcastReceiver {
         if (soundMode == null) soundMode = "ring";
         String lang = intent.getStringExtra(EXTRA_LANG);
         String title = intent.getStringExtra(EXTRA_TITLE);
-        if (title == null) title = "计时完成";
+        if (title == null) title = "en".equals(lang) ? "Timer finished" : "计时完成";
         String body = intent.getStringExtra(EXTRA_BODY);
-        if (body == null) body = ("shortBreak".equals(phase) || "longBreak".equals(phase)) ? "休息结束" : "专注结束";
+        if (body == null) {
+            boolean isBreak = "shortBreak".equals(phase) || "longBreak".equals(phase);
+            body = "en".equals(lang) ? (isBreak ? "Break finished" : "Focus finished")
+                    : (isBreak ? "休息结束" : "专注结束");
+        }
 
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         String channelId = DONE_CHANNEL_ID + "_" + soundMode;
@@ -46,7 +50,7 @@ public class TimerSoundReceiver extends BroadcastReceiver {
             else importance = NotificationManager.IMPORTANCE_HIGH;
             String channelName = "en".equals(lang) ? "Timer alert" : "计时完成";
             NotificationChannel ch = new NotificationChannel(channelId, channelName, importance);
-            ch.setDescription("计时结束时提醒");
+            ch.setDescription("en".equals(lang) ? "Timer alert" : "计时结束时提醒");
             if ("vibrate".equals(soundMode)) {
                 ch.setSound(null, null);
                 ch.enableVibration(true);
