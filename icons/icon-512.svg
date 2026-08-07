@@ -1,15 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="512" height="512">
   <defs>
+    <!-- 背景渐变 -->
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#4f46e5"/>
+      <stop offset="0%" stop-color="#4A90F5"/>
+      <stop offset="100%" stop-color="#3578E5"/>
     </linearGradient>
+    <!-- 书本阴影 -->
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="rgba(0,0,0,0.15)"/>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="100" fill="url(#bg)"/>
-  <circle cx="256" cy="230" r="130" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="20"/>
-  <circle cx="256" cy="230" r="130" fill="none" stroke="#fff" stroke-width="20" stroke-dasharray="816.8" stroke-dashoffset="204.2" stroke-linecap="round" transform="rotate(-90,256,230)"/>
-  <polygon points="232,190 232,270 290,230" fill="#fff"/>
-  <path d="M190 400 l40 40 l90 -110" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="120" cy="420" r="12" fill="rgba(255,255,255,0.4)"/>
-  <circle cx="392" cy="420" r="12" fill="rgba(255,255,255,0.4)"/>
+
+  <!-- 圆角背景 -->
+  <rect width="192" height="192" rx="44" fill="url(#bg)"/>
+
+  <!-- 黄色光芒装饰 (左上角) -->
+  <g transform="translate(24, 18) rotate(-30)">
+    <!-- 短横条 -->
+    <rect x="0" y="18" width="22" height="8" rx="4" fill="#F5D547"/>
+    <!-- 中横条 -->
+    <rect x="6" y="2" width="26" height="10" rx="5" fill="#F5D547" transform="rotate(25, 19, 7)"/>
+    <!-- 长横条 -->
+    <rect x="24" y="0" width="12" height="34" rx="6" fill="#F5D547" transform="rotate(15, 30, 17)"/>
+  </g>
+
+  <!-- 打开的书本底部 -->
+  <g transform="translate(16, 66)" filter="url(#shadow)">
+    <!-- 书页 - 左页 -->
+    <path d="M 80 10 Q 40 10, 0 20 L 0 70 Q 40 80, 80 90 Z" fill="#FFFFFF" opacity="0.95"/>
+    <!-- 书页 - 右页 -->
+    <path d="M 80 10 Q 120 10, 160 20 L 160 70 Q 120 80, 80 90 Z" fill="#F8FAFF" opacity="0.95"/>
+    <!-- 书页厚度 - 左 -->
+    <path d="M 0 70 Q 40 80, 80 90 L 80 96 Q 40 86, 0 76 Z" fill="#E8ECF5"/>
+    <!-- 书页厚度 - 右 -->
+    <path d="M 80 90 Q 120 80, 160 70 L 160 76 Q 120 86, 80 96 Z" fill="#E8ECF5"/>
+    <!-- 书脊阴影 -->
+    <rect x="78" y="10" width="4" height="86" rx="2" fill="#D0D8E8" opacity="0.6"/>
+  </g>
+
+  <!-- 日历/打卡纸主体 -->
+  <g transform="translate(24, 32)" filter="url(#shadow)">
+    <!-- 白色纸张 -->
+    <rect x="0" y="12" width="144" height="108" rx="16" fill="#FFFFFF"/>
+    <!-- 顶部蓝色横条（日历头部） -->
+    <rect x="0" y="12" width="144" height="34" rx="16" fill="#4A90F5"/>
+    <rect x="0" y="28" width="144" height="18" fill="#4A90F5"/>
+
+    <!-- 日历环 - 左 -->
+    <rect x="32" y="0" width="14" height="28" rx="7" fill="#FFFFFF"/>
+    <rect x="32" y="6" width="14" height="22" rx="7" fill="#E8ECF5"/>
+    <rect x="34" y="0" width="10" height="28" rx="5" fill="#FFFFFF"/>
+
+    <!-- 日历环 - 右 -->
+    <rect x="98" y="0" width="14" height="28" rx="7" fill="#FFFFFF"/>
+    <rect x="98" y="6" width="14" height="22" rx="7" fill="#E8ECF5"/>
+    <rect x="100" y="0" width="10" height="28" rx="5" fill="#FFFFFF"/>
+
+    <!-- 对勾 -->
+    <path d="M 52 76 L 68 92 L 100 56" fill="none" stroke="#2B7DE1" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
 </svg>
