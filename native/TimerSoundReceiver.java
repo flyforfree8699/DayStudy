@@ -6,6 +6,7 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.SystemClock;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -22,12 +23,19 @@ public class TimerSoundReceiver extends BroadcastReceiver {
     public static final String EXTRA_LANG = "lang";
     public static final String EXTRA_TITLE = "title";
     public static final String EXTRA_BODY = "body";
+    public static final String EXTRA_AT_ELAPSED = "atElapsed";
     public static final String DONE_CHANNEL_ID = "study_timer_done";
     public static final int DONE_NOTIFICATION_ID = 2002;
 
     @Override
     public void onReceive(Context context, Intent intent) {
         try {
+            // 校验准点时刻：用系统运行时长，提前超过 3 秒触发的一律视为陈旧闹钟丢弃，
+            // 防止"计时刚开始就弹专注结束"这类残留闹钟
+            long atElapsed = intent.getLongExtra(EXTRA_AT_ELAPSED, 0L);
+            if (atElapsed > 0L && SystemClock.elapsedRealtime() < atElapsed - 3000L) {
+                return;
+            }
             String phase = intent.getStringExtra(EXTRA_PHASE);
             if (phase == null) phase = "focus";
             String soundMode = intent.getStringExtra(EXTRA_SOUND_MODE);
@@ -70,6 +78,7 @@ public class TimerSoundReceiver extends BroadcastReceiver {
                     .setContentTitle(title)
                     .setContentText(body)
                     .setAutoCancel(true)
+                    .setOnlyAlertOnce(true)
                     .setContentIntent(contentIntent)
                     .setCategory(NotificationCompat.CATEGORY_ALARM)
                     .setPriority(NotificationCompat.PRIORITY_HIGH);

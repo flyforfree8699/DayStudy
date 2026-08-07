@@ -131,8 +131,9 @@ public class TimerNotifierPlugin extends Plugin {
         String lang = call.getString("lang");
         String title = call.getString("title");
         String body = call.getString("body");
-        TimerForegroundService.scheduleDone(
-                getContext(), at.longValue(),
+        long remaining = Math.max(0L, at.longValue() - System.currentTimeMillis());
+        TimerForegroundService.scheduleDoneElapsed(
+                getContext(), remaining,
                 phase == null ? "focus" : phase,
                 soundMode == null ? "ring" : soundMode,
                 lang == null ? "zh" : lang,

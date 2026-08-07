@@ -1251,6 +1251,7 @@ function nativeTimerConfig(){
     paused: !!timerPaused,
     remainingMs: Math.max(0, Math.round(timeLeft * 1000)),
     elapsedMs: Math.max(0, Math.round(timerElapsed * 1000)),
+    soundMode: getSoundMode(task),
     pausedText: timerPaused ? info.body : ''
   };
 }
@@ -1284,20 +1285,7 @@ async function startTimerNotification(){
     var cfg = nativeTimerConfig();
     var _sf = NATIVE.startForeground(cfg);
     if(_sf && typeof _sf.then === 'function'){ await _sf; }
-    if(!timerRunning || timerPaused) return;
-    if(cfg.running && !cfg.paused && cfg.remainingMs > 0 && cfg.mode !== 'countup'){
-      var task = getTask(currentTaskId);
-      var isBreak = (timerMode==='shortBreak' || timerMode==='longBreak');
-      var _sd = NATIVE.scheduleDone({
-        at: Date.now() + Math.max(1000, Math.round(timeLeft * 1000)),
-        phase: timerMode,
-        soundMode: getSoundMode(task),
-        lang: LANG,
-        title: t('计时完成'),
-        body: isBreak ? t('休息结束') : t('专注结束')
-      });
-      if(_sd && typeof _sd.then === 'function'){ await _sd; }
-    }
+    // 完成闹钟统一由原生前台服务根据 config 挂载/取消，网页不再单独挂，避免双源竞态
   }catch(e){}
 }
 

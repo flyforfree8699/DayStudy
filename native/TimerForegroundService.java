@@ -81,6 +81,14 @@ public class TimerForegroundService extends Service {
     }
 
     public static void scheduleDone(Context context, long at, String phase, String soundMode, String lang, String title, String body) {
+        scheduleDoneElapsed(context, Math.max(0L, at - System.currentTimeMillis()), phase, soundMode, lang, title, body);
+    }
+
+    /**
+     * 用系统运行时长（elapsedRealtime）挂准点闹钟：不受用户改时间/时区/NTP 校正影响，
+     * 并把目标时刻写进 extras，接收器可据此丢弃提前触发的陈旧闹钟。
+     */
+    public static void scheduleDoneElapsed(Context context, long remainingMs, String phase, String soundMode, String lang, String title, String body) {
         try {
             int code = ALARM_FOCUS;
             if ("shortBreak".equals(phase) || "longBreak".equals(phase)) code = ALARM_BREAK;
@@ -93,6 +101,8 @@ public class TimerForegroundService extends Service {
             intent.putExtra(TimerSoundReceiver.EXTRA_LANG, lang);
             intent.putExtra(TimerSoundReceiver.EXTRA_TITLE, title);
             intent.putExtra(TimerSoundReceiver.EXTRA_BODY, body);
+            long atElapsed = SystemClock.elapsedRealtime() + Math.max(1000L, remainingMs);
+            intent.putExtra(TimerSoundReceiver.EXTRA_AT_ELAPSED, atElapsed);
             PendingIntent pi = PendingIntent.getBroadcast(context, code, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
@@ -107,9 +117,9 @@ public class TimerForegroundService extends Service {
                 }
             }
             if (canExact) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atElapsed, pi);
             } else {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atElapsed, pi);
             }
         } catch (Throwable t) {
             // 闹钟权限异常：忽略，前台服务通知仍会刷新
@@ -141,6 +151,7 @@ public class TimerForegroundService extends Service {
         try {
             if (intent == null) {
                 // START_STICKY 重启但没有意图：结束空跑，避免僵尸常驻
+                cancelDone(this);
                 stopTicker();
                 stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
@@ -165,7 +176,9 @@ public class TimerForegroundService extends Service {
                 if (cfg.isPaused) {
                     cancelDone(this);
                 } else if (cfg.isRunning && cfg.remainingMs > 0 && !"countup".equals(cfg.mode)) {
-                    scheduleDone(this, System.currentTimeMillis() + cfg.remainingMs,
+                    // 先取消旧的再挂新的，避免任何残留/陈旧的完成闹钟
+                    cancelDone(this);
+                    scheduleDoneElapsed(this, cfg.remainingMs,
                             cfg.phase, cfg.soundMode, cfg.lang, null, null);
                 }
             } else if (ACTION_STOP.equals(action)) {
