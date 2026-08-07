@@ -248,6 +248,7 @@ body.no-frost .card,body.no-frost .stat-card{backdrop-filter:none;-webkit-backdr
 </style>
 </head>
 <body>
+<div id="dsErrorBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#c0392b;color:#fff;font-size:12px;line-height:1.5;padding:8px 12px;white-space:pre-wrap;word-break:break-all;"></div>
 <div class="mist-bg"></div>
 
 <!-- HEADER -->
@@ -514,6 +515,39 @@ body.no-frost .card,body.no-frost .stat-card{backdrop-filter:none;-webkit-backdr
 <div class="toast" id="toast"></div>
 
 <script>
+// ====== 兼容与诊断：旧版 WebView 兼容 + 把运行错误显示在屏幕上 ======
+if(typeof String.prototype.padStart !== 'function'){
+  String.prototype.padStart = function(len, pad){
+    var s = String(this), p = (pad === undefined || pad === null) ? ' ' : String(pad);
+    while(s.length < len){ s = p + s; }
+    return s;
+  };
+}
+if(typeof Object.entries !== 'function'){
+  Object.entries = function(obj){
+    var out = [], k;
+    for(k in obj){ if(Object.prototype.hasOwnProperty.call(obj, k)){ out.push([k, obj[k]]); } }
+    return out;
+  };
+}
+function showDsError(msg){
+  try{
+    var el = document.getElementById('dsErrorBanner');
+    if(!el) return;
+    el.style.display = 'block';
+    el.textContent = 'JS Error: ' + msg;
+  }catch(e){}
+}
+window.addEventListener('error', function(e){
+  try{ showDsError((e && e.message) ? e.message : 'unknown error'); }catch(err){}
+});
+window.addEventListener('unhandledrejection', function(e){
+  try{
+    var r = e && e.reason;
+    showDsError('Promise: ' + ((r && (r.message || r)) ? String(r.message || r) : 'unknown'));
+  }catch(err){}
+});
+
 // ====== DATA ======
 const STORAGE_KEY = 'study_pomodoro_data';
 const COLORS = ['#8b86d8','#e8b88a','#79c4bd','#e08d85','#9a94e0','#e79bb5','#6ec2c9','#e3b878','#84aede','#b39ddb'];
@@ -706,7 +740,7 @@ function setLang(l){
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 
 function loadData(){
-  try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||defaultData()}catch{return defaultData()}
+  try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||defaultData()}catch(e){return defaultData()}
 }
 function defaultData(){
   return {
@@ -721,7 +755,7 @@ function defaultData(){
 function saveData(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}
 
 let data = loadData();
-let currentTaskId = data.tasks[0]?.id || null;
+let currentTaskId = (data.tasks[0] && data.tasks[0].id) || null;
 let timerRunning = false, timerPaused = false, timerInterval = null;
 let timeLeft = 0, totalTime = 0, timerMode = 'focus'; // focus | shortBreak | longBreak | countdown | countup
 let timerElapsed = 0; // for countup
@@ -989,7 +1023,7 @@ function pauseTimer(){
   document.getElementById('timerStartBtn').innerHTML = ICON_PLAY;
     document.getElementById('timerStartBtn').classList.remove('running');
   document.getElementById('timerStatus').textContent = t('已暂停');
-  document.querySelector('.timer-display')?.classList.remove('timer-running');
+  var _dsTd=document.querySelector('.timer-display');if(_dsTd){_dsTd.classList.remove('timer-running');}
   pauseTimerNotification();
 }
 
@@ -1002,7 +1036,7 @@ function resetTimer(){
     document.getElementById('timerStartBtn').classList.remove('running');
   document.getElementById('timerStopBtn').style.display = 'none';
   document.getElementById('timerStatus').textContent = '';
-  document.querySelector('.timer-display')?.classList.remove('timer-running');
+  var _dsTd=document.querySelector('.timer-display');if(_dsTd){_dsTd.classList.remove('timer-running');}
   stopTimerNotification();
   lockedTheme = null; // 解锁，恢复当前任务色
   refreshTimerTheme();
@@ -1053,7 +1087,7 @@ function stopTimer(){
     document.getElementById('timerStartBtn').classList.remove('running');
   document.getElementById('timerStopBtn').style.display = 'none';
   document.getElementById('timerStatus').textContent = '';
-  document.querySelector('.timer-display')?.classList.remove('timer-running');
+  var _dsTd=document.querySelector('.timer-display');if(_dsTd){_dsTd.classList.remove('timer-running');}
   stopTimerNotification();
   lockedTheme = null; // 解锁，恢复当前任务色
   refreshTimerTheme();
@@ -1123,7 +1157,7 @@ function timerComplete(task){
     document.getElementById('timerStartBtn').classList.remove('running');
   document.getElementById('timerStopBtn').style.display = 'none';
   document.getElementById('timerStatus').textContent = '';
-  document.querySelector('.timer-display')?.classList.remove('timer-running');
+  var _dsTd=document.querySelector('.timer-display');if(_dsTd){_dsTd.classList.remove('timer-running');}
   stopTimerNotification(true); // 完成时刻保留准点闹钟，让系统到点响铃+弹完成通知
   
   if(task.timerMode==='pomodoro'){
@@ -1892,7 +1926,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!data.deletedTasks) data.deletedTasks = {};
     data.deletedTasks[currentTaskId] = {name: task.name, color: task.color};
     data.tasks = data.tasks.filter(t=>t.id!==currentTaskId);
-    if(currentTaskId===data.tasks[0]?.id) currentTaskId=data.tasks[0].id;
+    if(currentTaskId===(data.tasks[0] && data.tasks[0].id)) currentTaskId=data.tasks[0].id;
     saveData(data);
     renderTaskList();
     renderTaskSelector();
@@ -1998,7 +2032,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         if(!imported.tasks || !imported.sessions) throw new Error('格式错误');
         data = imported;
         saveData(data);
-        currentTaskId = data.tasks[0]?.id || null;
+        currentTaskId = (data.tasks[0] && data.tasks[0].id) || null;
         renderTaskSelector();
         renderTaskList();
         initTimer();
