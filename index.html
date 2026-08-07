@@ -247,7 +247,7 @@ body.no-frost .card,body.no-frost .stat-card{backdrop-filter:none;-webkit-backdr
 }
 @media(max-width:479.98px){
   /* 手机：任务列表与目标模块从左右两栏改为上下堆叠 */
-  .split-panel{flex-direction:column;gap:10px}
+  .split-panel{flex-direction:column;gap:16px}
   .split-divider{display:none}
   .task-list,.goals-list{max-height:240px}
 }
@@ -317,7 +317,6 @@ body.no-frost .card,body.no-frost .stat-card{backdrop-filter:none;-webkit-backdr
       <div class="timer-mode-info" id="timerModeInfo"></div>
     </div>
 
-    <button class="btn btn-outline btn-block" id="addTaskBtn" style="margin-bottom:4px" data-i18n="新建任务">+ 新建任务</button>
     <div class="card" style="margin-top:0;padding:12px">
       <div class="split-panel">
         <div class="split-left">
@@ -326,6 +325,7 @@ body.no-frost .card,body.no-frost .stat-card{backdrop-filter:none;-webkit-backdr
             <span style="font-size:11px;color:var(--text2)" data-i18n="点击 ✕ 删除">点击 ✕ 删除</span>
           </div>
           <div class="task-list" id="taskList"></div>
+          <button class="btn btn-outline btn-block" id="addTaskBtn" style="margin-top:10px" data-i18n="新建任务">+ 新建任务</button>
         </div>
         <div class="split-divider"></div>
         <div class="split-right">
@@ -1262,9 +1262,12 @@ async function startTimerNotification(){
     // 先确保通知权限：用户在系统弹窗上选择后才继续，避免"开始点了没通知"
     var _pr = NATIVE.requestPermission();
     if(_pr && typeof _pr.then === 'function'){ await _pr; }
+    // 等待授权/启动期间可能已被暂停或停止：以最新状态为准，防止误挂完成闹钟
+    if(!timerRunning || timerPaused) return;
     var cfg = nativeTimerConfig();
     var _sf = NATIVE.startForeground(cfg);
     if(_sf && typeof _sf.then === 'function'){ await _sf; }
+    if(!timerRunning || timerPaused) return;
     if(cfg.running && !cfg.paused && cfg.remainingMs > 0 && cfg.mode !== 'countup'){
       var task = getTask(currentTaskId);
       var isBreak = (timerMode==='shortBreak' || timerMode==='longBreak');
