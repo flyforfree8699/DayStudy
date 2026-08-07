@@ -517,6 +517,19 @@ body.no-frost .card,body.no-frost .stat-card{backdrop-filter:none;-webkit-backdr
   </div>
 </div>
 
+<!-- 通知权限引导弹窗（仅 APK） -->
+<div class="modal-overlay" id="notifyPromptOverlay">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" data-i18n="开启通知权限">开启通知权限</div>
+    <p style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:20px" data-i18n="计时提醒需要通知权限，开启后锁屏和后台也能收到计时与完成提醒。">计时提醒需要通知权限，开启后锁屏和后台也能收到计时与完成提醒。</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" id="notifyPromptLater" style="flex:1" data-i18n="稍后">稍后</button>
+      <button class="btn" id="notifyPromptOpen" style="flex:1" data-i18n="去开启">去开启</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -564,6 +577,10 @@ let LANG = 'zh';
 try{ LANG = localStorage.getItem(LANG_KEY) || 'zh'; }catch(e){}
 const EN_DICT = {
   'DayStudy · 番茄钟':'DayStudy · Pomodoro',
+  '开启通知权限':'Enable notifications',
+  '计时提醒需要通知权限，开启后锁屏和后台也能收到计时与完成提醒。':'Notifications are required for timer alerts on the lock screen and in the background.',
+  '稍后':'Later',
+  '去开启':'Enable',
   '设置':'Settings',
   '背景图片':'Background',
   '卡片透明度':'Card transparency',
@@ -1295,6 +1312,45 @@ function stopTimerNotification(keepDone){
 function pauseTimerNotification(){
   if(!NATIVE) return;
   NATIVE.update(nativeTimerConfig()).catch(()=>{}); // paused 配置会让服务取消准点闹钟
+}
+
+// 通知权限引导：进入 App 时检查，未授权则弹窗，点「去开启」直接跳系统通知设置页
+function showNotifyPrompt(){
+  var el = document.getElementById('notifyPromptOverlay');
+  if(el && !el.classList.contains('show')) el.classList.add('show');
+}
+function hideNotifyPrompt(){
+  var el = document.getElementById('notifyPromptOverlay');
+  if(el) el.classList.remove('show');
+}
+function recheckNotifyPermission(){
+  if(!NATIVE) return;
+  try{
+    var cp = NATIVE.checkPermission();
+    if(cp && typeof cp.then === 'function'){
+      cp.then(function(res){
+        if(res && !res.granted) showNotifyPrompt();
+      }).catch(function(){});
+    }
+  }catch(e){}
+}
+function openNotifySettings(){
+  hideNotifyPrompt();
+  try{
+    var os = NATIVE.openNotificationSettings();
+    if(os && typeof os.then === 'function'){ os.catch(function(){}); }
+  }catch(e){}
+  // 从设置页返回后复查一次，还没开就再弹
+  document.addEventListener('visibilitychange', function onceRecheck(){
+    if(document.visibilityState === 'visible'){
+      document.removeEventListener('visibilitychange', onceRecheck);
+      setTimeout(recheckNotifyPermission, 800);
+    }
+  });
+}
+function initNotificationPrompt(){
+  if(!NATIVE) return;
+  recheckNotifyPermission();
 }
 
 // APK 原生通知按钮事件（同 SW 一样转发给页面执行）
@@ -2186,6 +2242,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   // ====== 设置：语言 ======
   document.getElementById('langZhBtn').addEventListener('click', ()=>setLang('zh'));
   document.getElementById('langEnBtn').addEventListener('click', ()=>setLang('en'));
+  document.getElementById('notifyPromptLater').addEventListener('click', hideNotifyPrompt);
+  document.getElementById('notifyPromptOpen').addEventListener('click', openNotifySettings);
+  initNotificationPrompt();
   applyLang(); // 应用已保存的语言
 });
 </script>

@@ -2,7 +2,10 @@ package com.study.pomodoro;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 
 import androidx.core.content.ContextCompat;
 
@@ -67,6 +70,31 @@ public class TimerNotifierPlugin extends Plugin {
     private void permissionResult(PluginCall call) {
         boolean granted = getPermissionState("notifications") == PermissionState.GRANTED;
         call.resolve(new JSObject().put("granted", granted));
+    }
+
+    @PluginMethod
+    public void checkPermission(PluginCall call) {
+        call.resolve(new JSObject().put("granted", canNotify()));
+    }
+
+    @PluginMethod
+    public void openNotificationSettings(PluginCall call) {
+        try {
+            String pkg = getContext().getPackageName();
+            Intent intent;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                intent.putExtra(Settings.EXTRA_APP_PACKAGE, pkg);
+            } else {
+                intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + pkg));
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Throwable t) {
+            call.reject("无法打开通知设置");
+        }
     }
 
     @PluginMethod
