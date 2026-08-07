@@ -28,12 +28,22 @@ jobs:
         with:
           node-version: '20'
 
+      - name: 安装 SVG 转 PNG 工具
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsvg2-bin
+
       - name: 准备 Web 资源
         run: |
           mkdir -p www
           cp index.html www/
           cp manifest.json www/
           cp -r icons www/
+          mkdir -p icons_png
+          for s in 48 72 96 144 192; do
+            rsvg-convert -w $s -h $s icons/icon-192.svg > icons_png/icon-${s}x${s}.png
+          done
+          rsvg-convert -w 512 -h 512 icons/icon-512.svg > icons_png/icon-512x512.png
 
       - name: 初始化 Capacitor
         run: |
@@ -43,6 +53,30 @@ jobs:
 
       - name: 添加 Android 平台
         run: npx cap add android
+
+      - name: 复制 PNG 图标到 Android 项目
+        run: |
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          cp icons_png/icon-48x48.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          cp icons_png/icon-72x72.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cp icons_png/icon-96x96.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          cp icons_png/icon-144x144.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          cp icons_png/icon-192x192.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          # 同时复制为 foreground / round 图标
+          cp icons_png/icon-48x48.png android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
+          cp icons_png/icon-72x72.png android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
+          cp icons_png/icon-96x96.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
+          cp icons_png/icon-144x144.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
+          cp icons_png/icon-192x192.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          cp icons_png/icon-48x48.png android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          cp icons_png/icon-72x72.png android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          cp icons_png/icon-96x96.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
+          cp icons_png/icon-144x144.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
+          cp icons_png/icon-192x192.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 
       - name: 注入原生通知模块（前台服务 + 准点闹钟 + 通知桥）
         run: |
