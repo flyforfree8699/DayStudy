@@ -12,6 +12,7 @@ PERMS = (
     '    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n'
     '    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>\n'
     '    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n'
+    '    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n'
 )
 COMPONENTS = (
     '        <service android:name=".TimerForegroundService" android:exported="false" '

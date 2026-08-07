@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.Handler;
@@ -96,7 +97,16 @@ public class TimerForegroundService extends Service {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             // 与 Timety 相同的守卫：Android 12+ 精确闹钟权限可能被收回
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()) {
+            boolean canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
+            if (!canExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                try {
+                    canExact = context.checkSelfPermission(android.Manifest.permission.USE_EXACT_ALARM)
+                            == PackageManager.PERMISSION_GRANTED;
+                } catch (Throwable ignore) {
+                    canExact = false;
+                }
+            }
+            if (canExact) {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
             } else {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
