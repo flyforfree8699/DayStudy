@@ -28,22 +28,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 安装 SVG 转 PNG 工具
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq librsvg2-bin
-
       - name: 准备 Web 资源
         run: |
           mkdir -p www
           cp index.html www/
           cp manifest.json www/
           cp -r icons www/
-          mkdir -p icons_png
-          for s in 48 72 96 144 192; do
-            rsvg-convert -w $s -h $s icons/icon-192.svg > icons_png/icon-${s}x${s}.png
-          done
-          rsvg-convert -w 512 -h 512 icons/icon-512.svg > icons_png/icon-512x512.png
 
       - name: 初始化 Capacitor
         run: |
@@ -53,30 +43,6 @@ jobs:
 
       - name: 添加 Android 平台
         run: npx cap add android
-
-      - name: 复制 PNG 图标到 Android 项目
-        run: |
-          mkdir -p android/app/src/main/res/mipmap-mdpi
-          mkdir -p android/app/src/main/res/mipmap-hdpi
-          mkdir -p android/app/src/main/res/mipmap-xhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-          cp icons_png/icon-48x48.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          cp icons_png/icon-72x72.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          cp icons_png/icon-96x96.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          cp icons_png/icon-144x144.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          cp icons_png/icon-192x192.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          # 同时复制为 foreground / round 图标
-          cp icons_png/icon-48x48.png android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
-          cp icons_png/icon-72x72.png android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
-          cp icons_png/icon-96x96.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
-          cp icons_png/icon-144x144.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
-          cp icons_png/icon-192x192.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
-          cp icons_png/icon-48x48.png android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
-          cp icons_png/icon-72x72.png android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
-          cp icons_png/icon-96x96.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
-          cp icons_png/icon-144x144.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
-          cp icons_png/icon-192x192.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 
       - name: 注入原生通知模块（前台服务 + 准点闹钟 + 通知桥）
         run: |
@@ -105,24 +71,24 @@ jobs:
       - name: 构建 APK
         run: cd android && ./gradlew assembleDebug
 
-      - name: 重命名 APK
+      - name: 重命名 APK 为「学习打卡」
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk DayStudy-v1.0.apk
-          ls -lh DayStudy-v1.0.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk 学习打卡.apk
+          ls -lh 学习打卡.apk
 
       - name: 上传 APK 附件
         uses: actions/upload-artifact@v4
         with:
-          name: DayStudy-v1.0
-          path: DayStudy-v1.0.apk
+          name: 学习打卡
+          path: 学习打卡.apk
 
       - name: 发布到 GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete v1.0 --repo "${GITHUB_REPOSITORY}" --yes 2>/dev/null || true
+          gh release delete v1.4.0 --repo "${GITHUB_REPOSITORY}" --yes 2>/dev/null || true
           cat > RELEASE_NOTES.md << 'EOF'
-          DayStudy v1.0（Android APK）
+          DayStudy v1.4.0（Android APK）
 
           中文介绍：
           - 原生前台服务通知：通知栏实时走秒显示剩余/已计时时间（系统 Chronometer，每秒刷新）
@@ -143,16 +109,16 @@ jobs:
           下载后传到手机安装，需允许未知来源应用。
           Download and install on your phone; enable install-unknown-apps if prompted.
           EOF
-          gh release create v1.0 --repo "${GITHUB_REPOSITORY}" \
-            --title "DayStudy v1.0" \
+          gh release create v1.4.0 --repo "${GITHUB_REPOSITORY}" \
+            --title "学习打卡 Routine v1.4.0" \
             --notes-file RELEASE_NOTES.md
           mkdir -p release_pkg
-          cp DayStudy-v1.0.apk release_pkg/DayStudy-v1.0.apk
-          python3 -c "import shutil; shutil.make_archive('DayStudy-v1.0', 'zip', 'release_pkg')"
-          RELEASE_ID="$(gh release view v1.0 --repo "${GITHUB_REPOSITORY}" --json databaseId --jq '.databaseId')"
+          cp 学习打卡.apk release_pkg/学习打卡Routine-v1.4.0.apk
+          python3 -c "import shutil; shutil.make_archive('Routine-v1.4.0', 'zip', 'release_pkg')"
+          RELEASE_ID="$(gh release view v1.4.0 --repo "${GITHUB_REPOSITORY}" --json databaseId --jq '.databaseId')"
           curl -sS -X POST \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @DayStudy-v1.0.zip \
-            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=DayStudy-v1.0.zip"
+            --data-binary @Routine-v1.4.0.zip \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=Routine-v1.4.0.zip"
