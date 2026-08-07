@@ -127,7 +127,8 @@ public class TimerForegroundService extends Service {
             if (cfg.isPaused) {
                 cancelDone(this);
             } else if (cfg.isRunning && cfg.remainingMs > 0 && !"countup".equals(cfg.mode)) {
-                scheduleDone(this, System.currentTimeMillis() + cfg.remainingMs, cfg.phase);
+                scheduleDone(this, System.currentTimeMillis() + cfg.remainingMs,
+                        cfg.phase, cfg.soundMode, cfg.lang, null, null);
             }
         } else if (ACTION_STOP.equals(action)) {
             // JS 主动停止（stopTimerNotification）：闹钟由 JS 决定是否取消
@@ -159,6 +160,7 @@ public class TimerForegroundService extends Service {
         c.mode = o.optString("mode", "pomodoro");
         c.phase = o.optString("phase", "focus");
         c.lang = o.optString("lang", "zh");
+        c.soundMode = o.optString("soundMode", "silent");
         c.stateLabel = o.optString("stateLabel", "专注中");
         c.pauseLabel = o.optString("pauseLabel", "暂停");
         c.resumeLabel = o.optString("resumeLabel", "继续");
@@ -224,6 +226,7 @@ public class TimerForegroundService extends Service {
         String mode = "pomodoro";
         String phase = "focus";
         String lang = "zh";
+        String soundMode = "silent";
         String stateLabel = "专注中";
         String pauseLabel = "暂停";
         String resumeLabel = "继续";
