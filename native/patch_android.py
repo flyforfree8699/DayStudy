@@ -60,7 +60,8 @@ def patch_java():
         # Find the class body and add onCreate
         # First, add import for Bundle if not already present
         if "import android.os.Bundle;" not in s:
-            s = s.replace("package ", "import android.os.Bundle;\n\npackage ", 1)
+            # Insert after package declaration
+            s = re.sub(r'(package\s+[\w.]+;)', r'\1\n\nimport android.os.Bundle;', s, count=1)
         if "class MainActivity" in s:
             s = re.sub(
                 r'(class MainActivity\s+extends\s+\w+\s*\{)',
@@ -103,7 +104,7 @@ def patch_kotlin():
         # If no super.onCreate found, add the whole onCreate method
         # First add import for Bundle if not already present
         if "import android.os.Bundle" not in s:
-            s = s.replace("package ", "import android.os.Bundle\n\npackage ", 1)
+            s = re.sub(r'(package\s+[\w.]+)', r'\1\n\nimport android.os.Bundle', s, count=1)
         if "class MainActivity" in s:
             s = re.sub(
                 r'(class MainActivity\s*(:\s*\w+\(\))?\s*\{)',
