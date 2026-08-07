@@ -1282,14 +1282,21 @@ function pauseTimerNotification(){
 
 // APK 原生通知按钮事件（同 SW 一样转发给页面执行）
 if(NATIVE){
-  NATIVE.addListener('timerAction', (d)=>{
-    const action = d && d.action;
-    if(action === 'pause' && timerRunning && !timerPaused) pauseTimer();
-    else if(action === 'resume' && timerPaused) startTimer();
-    else if(action === 'stop' && (timerRunning || timerPaused)) stopTimer();
-  }).catch(()=>{});
+  try{
+    // Capacitor 8 的 addListener 返回 {remove} 对象而不是 Promise，不能直接 .catch
+    var _nl = NATIVE.addListener('timerAction', function(d){
+      var action = d && d.action;
+      if(action === 'pause' && timerRunning && !timerPaused) pauseTimer();
+      else if(action === 'resume' && timerPaused) startTimer();
+      else if(action === 'stop' && (timerRunning || timerPaused)) stopTimer();
+    });
+    if(_nl && typeof _nl.catch === 'function'){ _nl.catch(function(){}); }
+  }catch(err){}
   document.addEventListener('click', function nativePerm(){
-    NATIVE.requestPermission().catch(()=>{});
+    try{
+      var _rp = NATIVE.requestPermission();
+      if(_rp && typeof _rp.catch === 'function'){ _rp.catch(function(){}); }
+    }catch(err){}
     document.removeEventListener('click', nativePerm);
   }, {once:true});
 }
