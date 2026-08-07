@@ -44,12 +44,13 @@ jobs:
       - name: 添加 Android 平台
         run: npx cap add android
 
-      - name: 注入原生通知模块（前台服务 + 准点闹钟 + 通知桥）
+      - name: 注入原生模块（通知 + 应用图标）
         run: |
           mkdir -p android/app/src/main/java/com/study/pomodoro
           cp native/TimerForegroundService.java native/TimerSoundReceiver.java native/TimerNotifierPlugin.java android/app/src/main/java/com/study/pomodoro/
           mkdir -p android/app/src/main/res/drawable
           cp native/ic_notification.xml android/app/src/main/res/drawable/
+          cp -r native/android-res/. android/app/src/main/res/
           python3 native/patch_android.py android
 
       - name: 修复 Kotlin 依赖冲突
