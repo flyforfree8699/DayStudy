@@ -127,7 +127,7 @@ public class TimerForegroundService extends Service {
             if (cfg.isPaused) {
                 cancelDone(this);
             } else if (cfg.isRunning && cfg.remainingMs > 0 && !"countup".equals(cfg.mode)) {
-                scheduleDone(this, System.currentTimeMillis() + cfg.remainingMs, cfg.phase, "alarm", cfg.lang, cfg.title, "");
+                scheduleDone(this, System.currentTimeMillis() + cfg.remainingMs, cfg.phase);
             }
         } else if (ACTION_STOP.equals(action)) {
             // JS 主动停止（stopTimerNotification）：闹钟由 JS 决定是否取消
